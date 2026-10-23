@@ -7,6 +7,15 @@ interface Props {
   result: AnalysisResult | null;
 }
 
+const chartTokens = {
+  raw: "#82928f",
+  filtered: "#17837b",
+  peak: "#d45d50",
+  paper: "#fffefa",
+  text: "#667674",
+  grid: "#e3e6e0"
+};
+
 function thin(values: number[], samplingRate: number, maxPoints = 6000) {
   const step = Math.max(1, Math.ceil(values.length / maxPoints));
   const x: number[] = [];
@@ -29,7 +38,7 @@ export function ECGChart({ data, result }: Props) {
       type: "scattergl",
       mode: "lines",
       name: "Raw ECG",
-      line: { color: "#8b9ac7", width: 1.2 },
+      line: { color: chartTokens.raw, width: 1.2 },
       xaxis: "x",
       yaxis: "y"
     }
@@ -41,7 +50,7 @@ export function ECGChart({ data, result }: Props) {
       type: "scattergl",
       mode: "lines",
       name: "Filtered ECG",
-      line: { color: "#325ce8", width: 1.7 },
+      line: { color: chartTokens.filtered, width: 1.7 },
       xaxis: "x2",
       yaxis: "y2"
     });
@@ -51,7 +60,7 @@ export function ECGChart({ data, result }: Props) {
       type: "scatter",
       mode: "markers",
       name: "R peaks",
-      marker: { color: "#ef4d64", size: 8, line: { color: "white", width: 1.5 } },
+      marker: { color: chartTokens.peak, size: 8, line: { color: chartTokens.paper, width: 1.5 } },
       xaxis: "x2",
       yaxis: "y2"
     });
@@ -66,14 +75,14 @@ export function ECGChart({ data, result }: Props) {
         height: result ? 540 : 330,
         margin: { l: 58, r: 24, t: 30, b: 48 },
         paper_bgcolor: "transparent",
-        plot_bgcolor: "#fbfcff",
-        font: { family: "Inter, system-ui, sans-serif", color: "#52607a", size: 12 },
+        plot_bgcolor: chartTokens.paper,
+        font: { family: "IBM Plex Sans, system-ui, sans-serif", color: chartTokens.text, size: 12 },
         hovermode: "x unified",
         legend: { orientation: "h", x: 0, y: 1.08 },
-        xaxis: { domain: [0, 1], anchor: "y", showticklabels: !result, title: result ? undefined : { text: "Time (s)" }, gridcolor: "#e8ebf4" },
-        yaxis: { domain: result ? [0.57, 1] : [0, 1], title: { text: "Raw" }, gridcolor: "#e8ebf4", zeroline: false },
-        xaxis2: { domain: [0, 1], anchor: "y2", matches: "x", title: { text: "Time (s)" }, gridcolor: "#e8ebf4" },
-        yaxis2: { domain: [0, 0.43], title: { text: "Filtered" }, gridcolor: "#e8ebf4", zeroline: false }
+        xaxis: { domain: [0, 1], anchor: "y", showticklabels: !result, title: result ? undefined : { text: "Time (s)" }, gridcolor: chartTokens.grid },
+        yaxis: { domain: result ? [0.57, 1] : [0, 1], title: { text: "Raw" }, gridcolor: chartTokens.grid, zeroline: false },
+        xaxis2: { domain: [0, 1], anchor: "y2", matches: "x", title: { text: "Time (s)" }, gridcolor: chartTokens.grid },
+        yaxis2: { domain: [0, 0.43], title: { text: "Filtered" }, gridcolor: chartTokens.grid, zeroline: false }
       },
       { responsive: true, displaylogo: false, scrollZoom: true, modeBarButtonsToRemove: ["lasso2d", "select2d"] }
     );
