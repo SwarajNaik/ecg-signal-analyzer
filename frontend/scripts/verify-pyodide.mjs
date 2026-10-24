@@ -21,7 +21,14 @@ function gaussian(time, center, width) {
   return Math.exp(-0.5 * ((time - center) / width) ** 2);
 }
 
-function syntheticSignal({ duration = 12, samplingRate = 250, bpm = 72, interference = 50, inverted = false }) {
+function syntheticSignal({
+  duration = 12,
+  samplingRate = 250,
+  bpm = 72,
+  interference = 50,
+  interferenceAmplitude = 0.018,
+  inverted = false
+}) {
   const count = Math.floor(duration * samplingRate);
   const samples = Array.from({ length: count }, (_, index) => {
     const time = index / samplingRate;
@@ -34,7 +41,7 @@ function syntheticSignal({ duration = 12, samplingRate = 250, bpm = 72, interfer
       value += 0.28 * gaussian(time, beat + 0.25, 0.06);
     }
     value += 0.012 * Math.sin(index * 1.731);
-    if (interference) value += 0.18 * Math.sin(2 * Math.PI * interference * time);
+    if (interference) value += interferenceAmplitude * Math.sin(2 * Math.PI * interference * time);
     return inverted ? -value : value;
   });
   return { samples, sampling_rate_hz: samplingRate };
@@ -51,12 +58,12 @@ const cases = [
   })),
   {
     name: "ninety-bpm-50hz",
-    ...syntheticSignal({ duration: 20, bpm: 90, interference: 50 }),
+    ...syntheticSignal({ duration: 20, bpm: 90, interference: 50, interferenceAmplitude: 0.18 }),
     config: { ...defaultConfig, lowpass_hz: 100, notch_hz: 50 }
   },
   {
     name: "inverted-60hz",
-    ...syntheticSignal({ duration: 20, bpm: 84, interference: 60, inverted: true }),
+    ...syntheticSignal({ duration: 20, bpm: 84, interference: 60, interferenceAmplitude: 0.18, inverted: true }),
     config: { ...defaultConfig, lowpass_hz: 100, notch_hz: 60 }
   },
   { name: "invalid-flat", samples: Array(500).fill(0), sampling_rate_hz: 250, config: defaultConfig },
@@ -172,6 +179,7 @@ import numpy
 import scipy
 json.dumps({"numpy": numpy.__version__, "scipy": scipy.__version__})
 `);
+const demoIntervals = [...firstDemo.result.rr_intervals_seconds].sort((left, right) => left - right);
 console.log(JSON.stringify({
   pyodide: pyodideVersion,
   packages: JSON.parse(String(versions)),
@@ -179,5 +187,11 @@ console.log(JSON.stringify({
   runtime_ms: Math.round(runtimeMs),
   packages_ms: Math.round(packagesMs),
   first_demo_analysis_ms: Number(firstAnalysisMs.toFixed(1)),
-  repeated_demo_analysis_ms: Number(repeatedAnalysisMs.toFixed(1))
+  repeated_demo_analysis_ms: Number(repeatedAnalysisMs.toFixed(1)),
+  demo: {
+    beat_count: firstDemo.result.beat_count,
+    median_bpm: firstDemo.result.median_bpm,
+    median_rr_ms: demoIntervals[Math.floor(demoIntervals.length / 2)] * 1000,
+    warnings: firstDemo.result.warnings
+  }
 }, null, 2));
