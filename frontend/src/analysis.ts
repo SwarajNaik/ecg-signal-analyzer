@@ -55,6 +55,33 @@ function rcHighpass(values: number[], cutoff: number, fs: number): number[] {
   return output;
 }
 
+function notchFilter(values: number[], frequency: number, fs: number, qualityFactor = 30): number[] {
+  const angularFrequency = 2 * Math.PI * frequency / fs;
+  const alpha = Math.sin(angularFrequency) / (2 * qualityFactor);
+  const a0 = 1 + alpha;
+  const b0 = 1 / a0;
+  const b1 = -2 * Math.cos(angularFrequency) / a0;
+  const b2 = 1 / a0;
+  const a1 = -2 * Math.cos(angularFrequency) / a0;
+  const a2 = (1 - alpha) / a0;
+  const output = new Array<number>(values.length);
+  let input1 = values[0];
+  let input2 = values[0];
+  let output1 = values[0];
+  let output2 = values[0];
+
+  for (let index = 0; index < values.length; index += 1) {
+    const input = values[index];
+    const current = b0 * input + b1 * input1 + b2 * input2 - a1 * output1 - a2 * output2;
+    output[index] = current;
+    input2 = input1;
+    input1 = input;
+    output2 = output1;
+    output1 = current;
+  }
+  return output;
+}
+
 function zeroPhase(values: number[], filter: (input: number[]) => number[]): number[] {
   const forward = filter(values);
   return filter([...forward].reverse()).reverse();
@@ -70,12 +97,21 @@ function median(values: number[]): number {
 export function validateConfig(samplingRate: number, config: FilterConfig): void {
   const nyquist = samplingRate / 2;
   if (!Number.isFinite(samplingRate) || samplingRate <= 0) throw new Error("Sampling frequency must be positive.");
+  if (!Number.isFinite(config.highpass_hz) || !Number.isFinite(config.lowpass_hz)) {
+    throw new Error("Filter cutoffs must be finite numbers.");
+  }
   if (config.highpass_hz < 0 || config.highpass_hz >= config.lowpass_hz) {
     throw new Error("High-pass cutoff must be lower than low-pass cutoff.");
   }
   if (config.lowpass_hz >= nyquist) throw new Error("Low-pass cutoff must be below the Nyquist frequency.");
-  if (config.notch_hz !== null && config.notch_hz >= nyquist) {
-    throw new Error("Notch frequency must be below the Nyquist frequency.");
+  if (config.notch_hz !== null) {
+    if (!Number.isFinite(config.notch_hz) || config.notch_hz <= 0) {
+      throw new Error("Notch frequency must be a positive finite number.");
+    }
+    if (config.notch_hz >= nyquist) throw new Error("Notch frequency must be below the Nyquist frequency.");
+  }
+  if (!Number.isInteger(config.filter_order) || config.filter_order < 1 || config.filter_order > 8) {
+    throw new Error("Filter order must be an integer from 1 to 8.");
   }
 }
 
@@ -83,7 +119,13 @@ export function analyzeLocally(data: ECGData, config: FilterConfig): AnalysisRes
   validateConfig(data.samplingRate, config);
   if (data.samples.length < data.samplingRate) throw new Error("At least one second of ECG data is required.");
   if (data.samples.some((sample) => !Number.isFinite(sample))) throw new Error("The ECG contains invalid values.");
-  const range = Math.max(...data.samples) - Math.min(...data.samples);
+  let minimum = data.samples[0];
+  let maximum = data.samples[0];
+  for (const sample of data.samples) {
+    minimum = Math.min(minimum, sample);
+    maximum = Math.max(maximum, sample);
+  }
+  const range = maximum - minimum;
   if (range <= Number.EPSILON) throw new Error("The ECG signal is flat.");
 
   const offset = median(data.samples);
@@ -92,6 +134,9 @@ export function analyzeLocally(data: ECGData, config: FilterConfig): AnalysisRes
   for (let pass = 0; pass < repeats; pass += 1) {
     filtered = zeroPhase(filtered, (values) => rcHighpass(values, config.highpass_hz, data.samplingRate));
     filtered = zeroPhase(filtered, (values) => rcLowpass(values, config.lowpass_hz, data.samplingRate));
+  }
+  if (config.notch_hz !== null) {
+    filtered = zeroPhase(filtered, (values) => notchFilter(values, config.notch_hz!, data.samplingRate));
   }
 
   const absolute = filtered.map(Math.abs);

@@ -112,7 +112,7 @@ scripts/    Local development and production launchers
 
 ## Limitations
 
-- The browser fallback uses a lightweight zero-phase RC filter approximation. Use the local SciPy backend for the documented scientific pipeline.
+- The browser fallback uses lightweight forward-backward RC high/low-pass filters, a Q=30 biquad notch, and a percentile-based peak detector. Use the local SciPy backend for the documented Butterworth and Pan-Tompkins-inspired pipeline.
 - The default detector is designed for educational demonstrations and has not been clinically validated.
 - Very noisy, paced, highly irregular, or unusual-morphology ECGs may need different detector settings.
 - Uploaded signals are not stored by the application.
