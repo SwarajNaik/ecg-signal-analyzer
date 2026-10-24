@@ -20,10 +20,12 @@ export default function App() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
+  const analysisGeneration = useRef(0);
 
   const duration = useMemo(() => data ? data.samples.length / data.samplingRate : 0, [data]);
 
   const loadDemo = () => {
+    analysisGeneration.current += 1;
     const demo = createDemo();
     setData(demo);
     setSamplingRate(demo.samplingRate);
@@ -35,19 +37,23 @@ export default function App() {
 
   const loadFile = async (file?: File) => {
     if (!file) return;
+    const generation = ++analysisGeneration.current;
     setBusy(true);
     setError("");
     try {
       const parsed = await parseECGFile(file, samplingRate);
+      if (generation !== analysisGeneration.current) return;
       setData(parsed);
       setSamplingRate(parsed.samplingRate);
       setResult(null);
       setStatus("Signal loaded");
       setMode("Ready to analyze");
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not read the CSV file.");
+      if (generation === analysisGeneration.current) {
+        setError(caught instanceof Error ? caught.message : "Could not read the CSV file.");
+      }
     } finally {
-      setBusy(false);
+      if (generation === analysisGeneration.current) setBusy(false);
     }
   };
 
@@ -56,28 +62,38 @@ export default function App() {
     setBusy(true);
     setError("");
     setStatus("Analyzing signal…");
+    setMode("Preparing the scientific Python pipeline");
+    const generation = ++analysisGeneration.current;
     try {
       const current = { ...data, samplingRate };
       validateConfig(samplingRate, config);
-      const response = await analyze(current, config);
+      const response = await analyze(current, config, (progress) => {
+        if (generation === analysisGeneration.current) setStatus(progress);
+      });
+      if (generation !== analysisGeneration.current) return;
       setData(current);
       setResult(response.result);
       setMode(response.mode);
       setStatus("Analysis complete");
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Analysis failed.");
-      setStatus("Analysis stopped");
+      if (generation === analysisGeneration.current) {
+        setError(caught instanceof Error ? caught.message : "Analysis failed.");
+        setStatus("Analysis stopped");
+        setMode("Python runtime unavailable");
+      }
     } finally {
-      setBusy(false);
+      if (generation === analysisGeneration.current) setBusy(false);
     }
   };
 
   const reset = () => {
+    analysisGeneration.current += 1;
     setData(null);
     setResult(null);
     setConfig(DEFAULT_CONFIG);
     setSamplingRate(250);
     setError("");
+    setBusy(false);
     setStatus("Ready");
     setMode("Waiting for analysis");
   };
@@ -136,7 +152,7 @@ export default function App() {
             </div>
             <label>Power-line notch<select value={config.notch_hz ?? "off"} onChange={(event) => setConfig({ ...config, notch_hz: event.target.value === "off" ? null : Number(event.target.value) })}><option value="off">Off</option><option value="50">50 Hz</option><option value="60">60 Hz</option></select></label>
             <button className="button analyze" disabled={!data || busy} onClick={() => void runAnalysis()}>{busy ? <span className="spinner" /> : <Activity size={18} />}{busy ? "Processing…" : "Analyze ECG"}</button>
-            <p className="privacy-note">Your file stays in this application. The public demo processes it in your browser.</p>
+            <p className="privacy-note">Python, NumPy, and SciPy load on demand. Your ECG stays in this browser worker.</p>
           </aside>
 
           <section className="analysis-panel">
