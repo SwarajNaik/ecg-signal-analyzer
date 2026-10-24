@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -14,6 +14,8 @@ const pipelinePath = resolve(projectRoot, "backend/src/ecg_analyzer/pipeline.py"
 const pipelineSource = readFileSync(pipelinePath, "utf8");
 const packageBaseUrl = `https://cdn.jsdelivr.net/pyodide/v${pyodideVersion}/full/`;
 const packageCacheDir = mkdtempSync(join(tmpdir(), "ecg-pyodide-packages-"));
+const localPython = resolve(projectRoot, ".venv/bin/python");
+const nativePython = process.env.PYTHON_EXECUTABLE || (existsSync(localPython) ? localPython : "python3");
 
 function gaussian(time, center, width) {
   return Math.exp(-0.5 * ((time - center) / width) ** 2);
@@ -133,7 +135,7 @@ for request in json.load(sys.stdin):
         results.append({"ok": False, "error": str(error)})
 json.dump(results, sys.stdout, allow_nan=False)
 `;
-const native = spawnSync(resolve(projectRoot, ".venv/bin/python"), ["-c", nativeProgram], {
+const native = spawnSync(nativePython, ["-c", nativeProgram], {
   cwd: projectRoot,
   input: JSON.stringify(cases),
   encoding: "utf8",
